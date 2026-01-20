@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>家計簿（ローカル保存）</title>
+  <style>
+    :root { --bg:#0b0f17; --card:#121a26; --text:#e8eefc; --muted:#a9b4cc; --line:#263248; --good:#42d392; --bad:#ff5d5d; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; background:var(--bg); color:var(--text); }
+    header { padding:16px 14px 8px; position: sticky; top:0; background: linear-gradient(180deg, rgba(11,15,23,.95), rgba(11,15,23,.75)); backdrop-filter: blur(8px); border-bottom:1px solid rgba(38,50,72,.5); }
+    h1 { font-size:18px; margin:0 0 6px; }
+    .sub { color:var(--muted); font-size:12px; }
+    main { padding:12px 14px 40px; max-width: 980px; margin: 0 auto; }
+    .grid { display:grid; gap:12px; grid-template-columns: 1fr; }
+    @media (min-width: 900px){ .grid { grid-template-columns: 420px 1fr; align-items:start; } }
+    .card { background: var(--card); border:1px solid rgba(38,50,72,.7); border-radius:14px; padding:12px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    .row { display:flex; gap:10px; flex-wrap: wrap; }
+    .row > * { flex: 1 1 120px; }
+    label { display:block; font-size:12px; color: var(--muted); margin: 8px 0 6px; }
+    input, select, button { width:100%; padding:10px 10px; border-radius:10px; border:1px solid rgba(38,50,72,.9); background:#0d1421; color:var(--text); }
+    input[type="date"]{ padding:9px 10px; }
+    button { cursor:pointer; background:#1a2a44; border:1px solid rgba(66,211,146,.35); }
+    button:hover { filter: brightness(1.08); }
+    .btnRow { display:flex; gap:10px; margin-top:10px; }
+    .btnRow button { flex: 1; }
+    .danger { border-color: rgba(255,93,93,.45); background:#2a1520; }
+    .mini { font-size:12px; padding:8px 10px; }
+    .kpis { display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; }
+    .kpi { padding:10px; border-radius:12px; background: rgba(13,20,33,.6); border:1px solid rgba(38,50,72,.7); }
+    .kpi .t { font-size:12px; color: var(--muted); }
+    .kpi .v { font-size:18px; font-weight: 700; margin-top:4px; }
+    .good { color: var(--good); }
+    .bad { color: var(--bad); }
+    table { width:100%; border-collapse: collapse; margin-top:10px; overflow:hidden; border-radius: 12px; }
+    th, td { border-bottom: 1px solid rgba(38,50,72,.6); padding:10px 8px; font-size:13px; text-align:left; }
+    th { color: var(--muted); font-weight:600; background: rgba(13,20,33,.65); position: sticky; top: 76px; }
+    @media (max-width: 520px){ th { top: 92px; } }
+    tr:hover td { background: rgba(13,20,33,.55); }
+    .right { text-align:right; }
+    .pill { display:inline-block; padding:4px 8px; border-radius:999px; border:1px solid rgba(38,50,72,.85); color:var(--muted); font-size:12px; }
+    .typeIncome { border-color: rgba(66,211,146,.45); color: var(--good); }
+    .typeExpense { border-color: rgba(255,93,93,.45); color: var(--bad); }
+    .footerNote { color:var(--muted); font-size:12px; margin-top:10px; }
+    .flexBetween { display:flex; justify-content: space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="flexBetween">
+    <div>
+      <h1>家計簿（ローカル保存）</h1>
+      <div class="sub">収入/支出を記録 → 月別集計・カテゴリ集計・CSV書き出し（データは端末内に保存）</div>
+    </div>
+    <div class="row" style="max-width:360px;">
+      <div>
+        <label>表示月</label>
+        <input id="monthPicker" type="month" />
+      </div>
+      <div>
+        <label>検索</label>
+        <input id="search" placeholder="メモ/カテゴリで検索" />
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+    <section class="card">
+      <h2 style="font-size:14px; margin:0 0 6px;">入力</h2>
+      <div class="row">
+        <div>
+          <label>日付</label>
+          <input id="date" type="date" />
+        </div>
+        <div>
+          <label>種別</label>
+          <select id="type">
+            <option value="expense">支出</option>
+            <option value="income">収入</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>カテゴリ</label>
+          <select id="category"></select>
+        </div>
+        <div>
+          <label>金額（円）</label>
+          <input id="amount" type="number" inputmode="numeric" min="0" step="1" placeholder="例: 1200" />
+        </div>
+      </div>
+      <div>
+        <label>メモ</label>
+        <input id="memo" placeholder="例: 昼飯 / ガソリン" />
+      </div>
+      <div class="btnRow">
+        <button id="addBtn">追加</button>
+        <button id="resetBtn" class="mini">入力リセット</button>
+      </div>
+
+      <hr style="border:0; border-top:1px solid rgba(38,50,72,.6); margin:12px 0;">
+
+      <div class="row">
+        <button id="exportBtn" class="mini">CSV書き出し</button>
+        <button id="importBtn" class="mini">CSV取り込み</button>
+      </div>
+      <input id="importFile" type="file" accept=".csv,text/csv" style="display:none;" />
+
+      <div class="btnRow">
+        <button id="clearMonthBtn" class="danger mini">この月のデータ削除</button>
+        <button id="clearAllBtn" class="danger mini">全データ削除</button>
+      </div>
+
+      <div class="footerNote">
+        ※ ブラウザのデータ削除/別端末では消えます。クラウド同期したいなら次の改造で対応できる。
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="flexBetween">
+        <h2 style="font-size:14px; margin:0;">集計</h2>
+        <div id="count" class="pill">0件</div>
+      </div>
+
+      <div class="kpis" style="margin-top:10px;">
+        <div class="kpi">
+          <div class="t">収入</div>
+          <div class="v good" id="sumIncome">¥0</div>
+        </div>
+        <div class="kpi">
+          <div class="t">支出</div>
+          <div class="v bad" id="sumExpense">¥0</div>
+        </div>
+        <div class="kpi">
+          <div class="t">差額</div>
+          <div class="v" id="sumNet">¥0</div>
+        </div>
+      </div>
+
+      <h3 style="font-size:13px; margin:14px 0 6px;">カテゴリ別（支出）</h3>
+      <div id="catSummary" style="display:grid; gap:8px;"></div>
+
+      <h3 style="font-size:13px; margin:14px 0 6px;">明細</h3>
+      <div style="max-height: 420px; overflow:auto; border-radius:12px; border:1px solid rgba(38,50,72,.6);">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:110px;">日付</th>
+              <th style="width:70px;">種別</th>
+              <th style="width:120px;">カテゴリ</th>
+              <th>メモ</th>
+              <th class="right" style="width:120px;">金額</th>
+              <th style="width:70px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+  // ====== Settings ======
+  const STORAGE_KEY = "kakeibo_v1_items";
+
+  const CATEGORIES = [
+    "食費","日用品","交通","家賃/住宅","光熱費","通信","娯楽","サブスク","医療","交際費","衣服",
+    "美容","車","税金","教育","保険","その他"
+  ];
+
+  // ====== Helpers ======
+  const yen = (n) => "¥" + (Number(n || 0)).toLocaleString("ja-JP");
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const todayISO = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+  };
+  const monthISO = (d) => {
+    const dt = new Date(d);
+    return `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}`;
+  };
+  const uid = () => Math.random().toString(16).slice(2) + Date.now().toString(16);
+
+  function loadItems(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    }catch{
+      return [];
+    }
+  }
+  function saveItems(items){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  }
+
+  // ====== DOM ======
+  const el = (id) => document.getElementById(id);
+
+  const dateEl = el("date");
+  const typeEl = el("type");
+  const categoryEl = el("category");
+  const amountEl = el("amount");
+  const memoEl = el("memo");
+  const addBtn = el("addBtn");
+  const resetBtn = el("resetBtn");
+  const monthPicker = el("monthPicker");
+  const searchEl = el("search");
+  const tbody = el("tbody");
+  const sumIncomeEl = el("sumIncome");
+  const sumExpenseEl = el("sumExpense");
+  const sumNetEl = el("sumNet");
+  const catSummaryEl = el("catSummary");
+  const countEl = el("count");
+  const exportBtn = el("exportBtn");
+  const importBtn = el("importBtn");
+  const importFile = el("importFile");
+  const clearMonthBtn = el("clearMonthBtn");
+  const clearAllBtn = el("clearAllBtn");
+
+  // ====== State ======
+  let items = loadItems();
+
+  // ====== Init ======
+  function init(){
+    // category options
+    categoryEl.innerHTML = CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("");
+
+    dateEl.value = todayISO();
+
+    const now = new Date();
+    monthPicker.value = `${now.getFullYear()}-${pad2(now.getMonth()+1)}`;
+
+    render();
+  }
+
+  // ====== Core ======
+  function currentMonth(){
+    return monthPicker.value; // YYYY-MM
+  }
+
+  function filteredItems(){
+    const m = currentMonth();
+    const q = (searchEl.value || "").trim().toLowerCase();
+
+    return items
+      .filter(it => (it.month === m))
+      .filter(it => {
+        if(!q) return true;
+        return (it.memo || "").toLowerCase().includes(q) || (it.category || "").toLowerCase().includes(q);
+      })
+      .sort((a,b) => (a.date < b.date ? 1 : -1)); // desc by date
+  }
+
+  function render(){
+    const list = filteredItems();
+
+    // table
+    tbody.innerHTML = list.map(it => {
+      const typePill = it.type === "income"
+        ? `<span class="pill typeIncome">収入</span>`
+        : `<span class="pill typeExpense">支出</span>`;
+      return `
+        <tr>
+          <td>${it.date}</td>
+          <td>${typePill}</td>
+          <td>${it.category}</td>
+          <td>${escapeHtml(it.memo || "")}</td>
+          <td class="right">${yen(it.amount)}</td>
+          <td><button class="mini danger" data-del="${it.id}">削除</button></td>
+        </tr>
+      `;
+    }).join("");
+
+    // KPI
+    const income = list.filter(x => x.type === "income").reduce((s,x)=> s + Number(x.amount||0), 0);
+    const expense = list.filter(x => x.type === "expense").reduce((s,x)=> s + Number(x.amount||0), 0);
+    const net = income - expense;
+
+    sumIncomeEl.textContent = yen(income);
+    sumExpenseEl.textContent = yen(expense);
+    sumNetEl.textContent = yen(net);
+    sumNetEl.className = "v " + (net >= 0 ? "good" : "bad");
+
+    // counts
+    countEl.textContent = `${list.length}件`;
+
+    // category summary (expense)
+    const map = new Map();
+    for(const it of list){
+      if(it.type !== "expense") continue;
+      map.set(it.category, (map.get(it.category) || 0) + Number(it.amount||0));
+    }
+    const entries = Array.from(map.entries()).sort((a,b)=> b[1]-a[1]);
+
+    catSummaryEl.innerHTML = entries.length ? entries.map(([c, v]) => `
+      <div class="kpi" style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="t">${c}</div>
+        <div class="v bad" style="font-size:16px;">${yen(v)}</div>
+      </div>
+    `).join("") : `<div class="footerNote">支出がまだ無いよ。</div>`;
+
+    // bind delete
+    tbody.querySelectorAll("[data-del]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-del");
+        items = items.filter(x => x.id !== id);
+        saveItems(items);
+        render();
+      });
+    });
+  }
+
+  function escapeHtml(str){
+    return String(str)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  // ====== Events ======
+  addBtn.addEventListener("click", () => {
+    const date = dateEl.value;
+    const type = typeEl.value;
+    const category = categoryEl.value;
+    const amount = Number(amountEl.value);
+
+    if(!date){
+      alert("日付を入れて！");
+      return;
+    }
+    if(!Number.isFinite(amount) || amount <= 0){
+      alert("金額は1円以上で入れて！");
+      return;
+    }
+
+    const item = {
+      id: uid(),
+      date,
+      month: monthISO(date),
+      type,
+      category,
+      amount: Math.floor(amount),
+      memo: (memoEl.value || "").trim()
+    };
+
+    items.push(item);
+    saveItems(items);
+
+    // quick reset amount/memo
+    amountEl.value = "";
+    memoEl.value = "";
+    render();
+  });
+
+  resetBtn.addEventListener("click", () => {
+    dateEl.value = todayISO();
+    typeEl.value = "expense";
+    categoryEl.value = CATEGORIES[0];
+    amountEl.value = "";
+    memoEl.value = "";
+  });
+
+  monthPicker.addEventListener("change", render);
+  searchEl.addEventListener("input", render);
+
+  // ====== CSV Export/Import ======
+  exportBtn.addEventListener("click", () => {
+    const m = currentMonth();
+    const list = items.filter(it => it.month === m).sort((a,b)=> (a.date > b.date ? 1 : -1));
+    const header = ["id","date","type","category","amount","memo"];
+    const rows = [header.join(",")].concat(list.map(it => [
+      it.id,
+      it.date,
+      it.type,
+      csvEscape(it.category),
+      it.amount,
+      csvEscape(it.memo || "")
+    ].join(",")));
+
+    const blob = new Blob([rows.join("\n")], {type:"text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `kakeibo_${m}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  function csvEscape(s){
+    const t = String(s ?? "");
+    if (/[",\n]/.test(t)) return `"${t.replaceAll('"','""')}"`;
+    return t;
+  }
+
+  importBtn.addEventListener("click", () => importFile.click());
+
+  importFile.addEventListener("change", async () => {
+    const file = importFile.files?.[0];
+    if(!file) return;
+
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter(Boolean);
+    if(lines.length < 2){
+      alert("CSVが空っぽっぽい！");
+      return;
+    }
+
+    // Expect header: id,date,type,category,amount,memo
+    const header = lines[0].split(",");
+    const idx = (name) => header.indexOf(name);
+
+    const required = ["id","date","type","category","amount","memo"];
+    for(const r of required){
+      if(idx(r) === -1){
+        alert("CSVの形式が違うかも（必要: id,date,type,category,amount,memo）");
+        return;
+      }
+    }
+
+    const parsed = [];
+    for(let i=1;i<lines.length;i++){
+      const row = parseCsvLine(lines[i]);
+      const date = row[idx("date")]?.trim();
+      if(!date) continue;
+
+      const it = {
+        id: row[idx("id")]?.trim() || uid(),
+        date,
+        month: monthISO(date),
+        type: row[idx("type")]?.trim() === "income" ? "income" : "expense",
+        category: (row[idx("category")] || "その他").trim() || "その他",
+        amount: Math.max(0, Math.floor(Number(row[idx("amount")]) || 0)),
+        memo: (row[idx("memo")] || "").trim()
+      };
+      if(it.amount > 0) parsed.push(it);
+    }
+
+    // merge by id (overwrite)
+    const byId = new Map(items.map(x => [x.id, x]));
+    for(const it of parsed) byId.set(it.id, it);
+    items = Array.from(byId.values());
+
+    saveItems(items);
+    render();
+    importFile.value = "";
+    alert(`取り込み完了: ${parsed.length}件`);
+  });
+
+  // minimal CSV parser (handles quotes)
+  function parseCsvLine(line){
+    const out = [];
+    let cur = "";
+    let inQ = false;
+    for(let i=0;i<line.length;i++){
+      const ch = line[i];
+      if(inQ){
+        if(ch === '"'){
+          if(line[i+1] === '"'){ cur += '"'; i++; }
+          else inQ = false;
+        }else cur += ch;
+      }else{
+        if(ch === ','){ out.push(cur); cur=""; }
+        else if(ch === '"'){ inQ = true; }
+        else cur += ch;
+      }
+    }
+    out.push(cur);
+    return out;
+  }
+
+  // ====== Deletion ======
+  clearMonthBtn.addEventListener("click", () => {
+    const m = currentMonth();
+    if(!confirm(`${m} のデータを全部消す？（戻せない）`)) return;
+    items = items.filter(it => it.month !== m);
+    saveItems(items);
+    render();
+  });
+
+  clearAllBtn.addEventListener("click", () => {
+    if(!confirm("全データ削除する？（戻せない）")) return;
+    items = [];
+    saveItems(items);
+    render();
+  });
+
+  init();
+</script>
+</body>
+</html>
