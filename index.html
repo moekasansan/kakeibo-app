@@ -36,8 +36,15 @@
     .bad { color: var(--bad); }
     table { width:100%; border-collapse: collapse; margin-top:10px; overflow:hidden; border-radius: 12px; }
     th, td { border-bottom: 1px solid rgba(38,50,72,.6); padding:10px 8px; font-size:13px; text-align:left; }
-    th { color: var(--muted); font-weight:600; background: rgba(13,20,33,.65); position: sticky; top: 76px; }
-    @media (max-width: 520px){ th { top: 92px; } }
+    th th { 
+  color: var(--muted);
+  font-weight:600;
+  background: rgba(13,20,33,.65);
+  position: sticky;
+  top: 0;              /* ←ここが重要 */
+  z-index: 2;          /* ヘッダー行を前に */
+}
+
     tr:hover td { background: rgba(13,20,33,.55); }
     .right { text-align:right; }
     .pill { display:inline-block; padding:4px 8px; border-radius:999px; border:1px solid rgba(38,50,72,.85); color:var(--muted); font-size:12px; }
@@ -497,4 +504,5 @@
 </script>
 </body>
 </html>
+
 
